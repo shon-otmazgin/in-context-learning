@@ -11,7 +11,7 @@ def set_seed(seed):
 
 def linear_attention(V, K, q):
     weights = torch.matmul(K.T, q)
-    # is this is not linear attention here we need to do softmax
+    # if this is not linear attention here we need to do softmax
 
     return torch.matmul(V, weights)
 
