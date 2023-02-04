@@ -78,22 +78,18 @@ if __name__ == '__main__':
 
     for i, (attn_weights, query, key, value) in enumerate(outputs['attentions']):
         attn_output = torch.matmul(attn_weights, value)
-        attn_output2, attn_weights2 = attention(query, key, value, linear=True)
+        attn_output2, attn_weights2 = attention(query, key, value, linear=True if i == 11 else False)
         attn_output3, delta_w = linear_attn_to_sgd(query, key, value)
 
-        attn_output = attn_output[:, :, -1, :]
-        attn_output2 = attn_output2[:, :, -1, :]
-        attn_output3 = attn_output3[:, :, -1, :]
-        print(f'Layer {i}: attn_output      == linear_attention: {torch.equal(attn_output, attn_output2)}')
-        print()
-        print(f'Layer {i}: attn_output      == dual_form:        {torch.equal(attn_output, attn_output3)}')
-        print(f'Layer {i}: attn_output      ~  dual_form:        {torch.isclose(attn_output, attn_output3).sum() / torch.ones_like(attn_output3).sum()}')
-        print()
-        print(f'Layer {i}: linear_attention == dual_form:        {torch.equal(attn_output2, attn_output3)}')
-        print(f'Layer {i}: linear_attention ~  dual_form:        {torch.isclose(attn_output2, attn_output3).sum() / torch.ones_like(attn_output3).sum()}')
+        attn_output = attn_output
+        attn_output2 = attn_output2
+        print(f'Layer {i}: attn_weights  == using_torch: {torch.equal(attn_weights, attn_weights2)}')
+        print(f'Layer {i}: attn_output   == using_torch: {torch.equal(attn_output, attn_output2)}')
+        print(f'Layer {i}: attn_output     == dual_form: {torch.equal(attn_output, attn_output3)}')
+        print(f'Layer {i}: attn_output     == dual_form: {torch.isclose(attn_output, attn_output3).sum() / torch.ones_like(attn_output3).sum()}')
+        print(f'Layer {i}: attn_output     == dual_form: (last) {torch.isclose(attn_output[:, :, -1, :], attn_output3[:, :, -1, :]).sum() / torch.ones_like(attn_output3[:, :, -1, :]).sum()}')
         print()
 
-        break
 
 
 
