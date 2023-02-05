@@ -15,17 +15,27 @@ def set_seed(seed):
 def attention(query, key, value, linear=False):
     attn_weights = torch.matmul(query, key.transpose(-1, -2))
 
-    # masking
     query_length, key_length = query.size(-2), key.size(-2)
     causal_mask = bias[:, :, key_length - query_length: key_length, :key_length].to(torch.bool)
-    mask_value = torch.finfo(attn_weights.dtype).min
-    # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
-    # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
-    mask_value = torch.tensor(mask_value, dtype=attn_weights.dtype).to(attn_weights.device)
-    attn_weights = torch.where(causal_mask, attn_weights, mask_value)
 
     if not linear:
+        mask_value = torch.finfo(attn_weights.dtype).min
+        # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
+        # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
+        mask_value = torch.tensor(mask_value, dtype=attn_weights.dtype).to(attn_weights.device)
+        attn_weights = torch.where(causal_mask, attn_weights, mask_value)
+
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
+    else:
+        # mask_value = torch.finfo(attn_weights.dtype).min
+        mask_value = 0
+        # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
+        # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
+        mask_value = torch.tensor(mask_value, dtype=attn_weights.dtype).to(attn_weights.device)
+        attn_weights = torch.where(causal_mask, attn_weights, mask_value)
+
+        # attn_weights = attn_weights / torch.linalg.norm(attn_weights, dim=-1).unsqueeze(-1)
+        # attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
     attn_output = torch.matmul(attn_weights, value)
 
@@ -64,17 +74,28 @@ if __name__ == '__main__':
     set_seed(42)
 
     tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+    tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
-    inputs = tokenizer(["Nine judges currently serve the Supreme"], return_tensors="pt")
-    input_ids = inputs["input_ids"].tolist()[0]
+    # inputs = tokenizer(["Nine judges currently serve the Supreme"], return_tensors="pt")
+    inputs = tokenizer(["seven of the nine sitting justices were"], return_tensors="pt")
+    # inputs = tokenizer(["Michael Jack, born 17 September"], return_tensors="pt")
+    # inputs = tokenizer(["Michael Jack was born in"], return_tensors="pt")
 
     # simple forward
     outputs = model(**inputs, output_attentions=True)
     logits = outputs.logits
-    next_word = logits[0][-1].argmax()
+    input_ids = inputs["input_ids"].tolist()
 
-    t, p = tokenizer.decode(input_ids), tokenizer.decode(next_word)
-    print(f'prefix: {t} \nnext word: {p}')
+    for i, ids in enumerate(input_ids):
+        try:
+            idx = ids.index(50256)
+        except ValueError:
+            idx = len(ids)
+
+        next_word = logits[i][idx - 1].argmax()
+        t, p = tokenizer.decode(ids[:idx]), tokenizer.decode(next_word)
+        print(f'prefix: {t} \nnext word: {p}')
+        print()
 
     for i, (attn_weights, query, key, value) in enumerate(outputs['attentions']):
         attn_output = torch.matmul(attn_weights, value)
