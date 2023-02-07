@@ -27,12 +27,12 @@ seperator = '\n\n'
 train_df = prepare_for_prompt('super_glue/rte/train.jsonl', prompt_template)
 dev_df = prepare_for_prompt('super_glue/rte/val.jsonl', prompt_template, label=False)
 
-few_shot = 22
+few_shot = 16
 _, few_shot_df = train_test_split(train_df, test_size=few_shot, random_state=few_shot, shuffle=True)
 few_shot_prompt = f'{seperator}'.join(few_shot_df['prompt'].tolist())
 
 # device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
-opt_size = 'facebook/opt-66b'
+opt_size = 'facebook/opt-13b'
 model = AutoModelForCausalLM.from_pretrained(opt_size, device_map="auto")#.to(device)
 tokenizer = AutoTokenizer.from_pretrained(opt_size, use_fast=False)
 
