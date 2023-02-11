@@ -5,31 +5,44 @@ import torch
 from tqdm.auto import trange, tqdm
 from sklearn.metrics import accuracy_score
 
-
-def prepare_for_prompt(file_path, prompt_template, label=True):
-    df = pd.read_json(file_path, lines=True)
-
-    df['str_label'] = df.apply(lambda ex: "True" if ex['label'] == "entailment" else "False", axis=1)
-
-    df['prompt'] = df.apply(
-        lambda ex: prompt_template.format(
-            premise=ex['premise'], hypothesis=ex['hypothesis'], label=ex['str_label'] if label else ''
-        ).strip()
-        , axis=1
-    )
-
-    return df
+from super_glue.data import get_datasets
 
 
-prompt_template = '{premise}\nQuestion: {hypothesis} True or False?\nAnswer: {label}'
+def rte_prompt(ex, add_completion):
+    prompt_template = '{premise} question: {hypothesis} Yes or No? answer:{completion}'
+    label_to_completion_map = {
+        1: ' No',  # not_entailment
+        0: ' Yes'  # entailment
+    }
+
+    completion = label_to_completion_map[ex['label']]
+    prompt = prompt_template.format(
+        premise=ex['premise'], hypothesis=ex['hypothesis'], completion=completion if add_completion else ''
+    ).strip()
+
+    return prompt, completion
+
+
+# indices = [1432, 1711, 383, 1742, 31, 2304, 391, 380, 1607, 703, 1814, 2082, 2379, 1189, 1573, 1455]
+few_shot_dataset, dev_dataset = get_datasets(
+    task_name='rte', prompt_func=rte_prompt, n_shots=16, seed=0
+)
+
 seperator = '\n\n'
+few_shot_prompt = f'{seperator}'.join(few_shot_dataset['prompt'])
 
-train_df = prepare_for_prompt('super_glue/rte/train.jsonl', prompt_template)
-dev_df = prepare_for_prompt('super_glue/rte/val.jsonl', prompt_template, label=False)
+preds = []
+labels = []
+prompts = []
+for example in dev_dataset:
+    prompt = few_shot_prompt + f'{seperator}{example["prompt"]}'
+    prompts.append(prompt)
+    labels.append(example['label'])
 
-few_shot = 16
-_, few_shot_df = train_test_split(train_df, test_size=few_shot, random_state=few_shot, shuffle=True)
-few_shot_prompt = f'{seperator}'.join(few_shot_df['prompt'].tolist())
+print(prompts[0])
+print(labels[0])
+print()
+
 
 # device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
 opt_size = 'facebook/opt-13b'
@@ -38,28 +51,8 @@ tokenizer = AutoTokenizer.from_pretrained(opt_size, use_fast=False)
 
 print(model.hf_device_map)
 
-preds = []
-labels = []
-prompts = []
-for i, row in dev_df.iterrows():
-    prompt = few_shot_prompt + f'{seperator}{row["prompt"]}'
-    prompts.append(prompt)
-    if row['label'] == "entailment":
-        labels.append(1)
-    elif row['label'] == "not_entailment":
-        labels.append(0)
-    else:
-        raise Exception()
-
-print(prompts[0])
-print(labels[0])
-print()
-
-print(prompts[1])
-print(labels[1])
-
-true_id = tokenizer.encode(" True", add_special_tokens=False)[0]
-false_id = tokenizer.encode(" False", add_special_tokens=False)[0]
+yes_id = tokenizer.encode(" Yes", add_special_tokens=False)[0]
+no_id = tokenizer.encode(" No", add_special_tokens=False)[0]
 batch_size = 1
 batches = []
 for i in trange(0, len(prompts), batch_size):
@@ -81,7 +74,7 @@ for encoded_batch in tqdm(batches, desc='inference'):
     last_hidden_state_indices = last_hidden_state_indices.unsqueeze(-1).unsqueeze(-1).expand((batch_size, 1, vocab_size))
     # out[i][j][k] = input[i][index[i][j][k]][k]  # if dim == 1
     last_hidden_state_logits = torch.gather(logits, dim=1, index=last_hidden_state_indices)
-    classes_logits = last_hidden_state_logits[:, :, [false_id, true_id]].squeeze(1)
+    classes_logits = last_hidden_state_logits[:, :, [yes_id, no_id]].squeeze(1)
     preds += classes_logits.argmax(dim=-1).tolist()
 
 acc = accuracy_score(labels, preds)
