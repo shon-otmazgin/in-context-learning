@@ -15,7 +15,7 @@ def rte_prompt(ex, add_completion):
         0: ' Yes'  # entailment
     }
 
-    completion = label_to_completion_map[ex['label']]
+    completion = label_to_completion_map[ex['class_label']]
     prompt = prompt_template.format(
         premise=ex['premise'], hypothesis=ex['hypothesis'], completion=completion if add_completion else ''
     ).strip()
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     for example in dev_dataset:
         prompt = few_shot_prompt + f'{seperator}{example["prompt"]}'
         prompts.append(prompt)
-        labels.append(example['label'])
+        labels.append(example['class_label'])
 
     print(prompts[0])
     print(labels[0])

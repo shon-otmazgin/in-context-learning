@@ -10,8 +10,13 @@ def prepare_prompt(ex, prompt_func, add_completion=True):
     return ex
 
 
-def get_datasets(task_name, prompt_func, n_shots=32, finetune=False, seed=None, shots_indices=None):
+def encode(batch, tokenizer):
+    return tokenizer(batch['prompt'])
+
+
+def get_datasets(task_name, prompt_func, n_shots=32, finetune=False, seed=None, shots_indices=None, tokenizer=None):
     dataset = load_dataset("super_glue", task_name)
+    dataset = dataset.rename_column('label', 'class_label')
 
     if not shots_indices:
         few_shot_dataset = dataset['train'].train_test_split(
@@ -21,18 +26,23 @@ def get_datasets(task_name, prompt_func, n_shots=32, finetune=False, seed=None, 
         few_shot_dataset = dataset['train'].select(shots_indices)
     dev_dataset = dataset['validation']
 
+    few_shot_dataset = few_shot_dataset.map(
+        prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': True}
+    )
     if not finetune:
-        few_shot_dataset = few_shot_dataset.map(
-            prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': True}
-        )
-    else:
-        few_shot_dataset = few_shot_dataset.map(
+        dev_dataset = dev_dataset.map(
             prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': False}
         )
+    else:
+        dev_dataset = dev_dataset.map(
+            prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': True}
+        )
 
-    dev_dataset = dev_dataset.map(
-        prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': False}
-    )
+    # dev_dataset = dev_dataset.select(list(range(10)))
+
+    if tokenizer:
+        few_shot_dataset = few_shot_dataset.map(encode, batched=True, fn_kwargs={'tokenizer': tokenizer})
+        dev_dataset = dev_dataset.map(encode, batched=True, fn_kwargs={'tokenizer': tokenizer})
 
     return few_shot_dataset, dev_dataset
 
