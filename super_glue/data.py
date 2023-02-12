@@ -10,7 +10,7 @@ def prepare_prompt(ex, prompt_func, add_completion=True):
     return ex
 
 
-def get_datasets(task_name, prompt_func, n_shots=32, seed=None, shots_indices=None):
+def get_datasets(task_name, prompt_func, n_shots=32, finetune=False, seed=None, shots_indices=None):
     dataset = load_dataset("super_glue", task_name)
 
     if not shots_indices:
@@ -21,9 +21,15 @@ def get_datasets(task_name, prompt_func, n_shots=32, seed=None, shots_indices=No
         few_shot_dataset = dataset['train'].select(shots_indices)
     dev_dataset = dataset['validation']
 
-    few_shot_dataset = few_shot_dataset.map(
-        prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': True}
-    )
+    if not finetune:
+        few_shot_dataset = few_shot_dataset.map(
+            prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': True}
+        )
+    else:
+        few_shot_dataset = few_shot_dataset.map(
+            prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': False}
+        )
+
     dev_dataset = dev_dataset.map(
         prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': False}
     )
