@@ -1,11 +1,19 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 from tqdm.auto import trange, tqdm
 from sklearn.metrics import accuracy_score
 
-from super_glue.data import get_datasets
+from data import get_datasets
+
+
+rte_config = {
+    'prompt_template': '{premise} question: {hypothesis} Yes or No? answer:{completion}',
+    'target_tokens': [' Yes', ' No'],
+    'label_to_completion_map': {
+        1: ' No',  # not_entailment
+        0: ' Yes'  # entailment
+    }
+}
 
 
 def rte_prompt(ex, add_completion):
@@ -24,7 +32,6 @@ def rte_prompt(ex, add_completion):
 
 
 if __name__ == '__main__':
-    # indices = [1432, 1711, 383, 1742, 31, 2304, 391, 380, 1607, 703, 1814, 2082, 2379, 1189, 1573, 1455]
     few_shot_dataset, dev_dataset = get_datasets(
         task_name='rte', prompt_func=rte_prompt, n_shots=16, seed=0
     )
@@ -44,10 +51,10 @@ if __name__ == '__main__':
     print(labels[0])
     print()
 
-
     # device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
     opt_size = 'facebook/opt-13b'
-    model = AutoModelForCausalLM.from_pretrained(opt_size, device_map="auto")#.to(device)
+    cache_dir = '/home/nlp/shon711/.cache'
+    model = AutoModelForCausalLM.from_pretrained(opt_size, device_map="auto", cache_dir=cache_dir)
     tokenizer = AutoTokenizer.from_pretrained(opt_size, use_fast=False)
 
     print(model.hf_device_map)
@@ -81,17 +88,6 @@ if __name__ == '__main__':
     acc = accuracy_score(labels, preds)
     print(f'Accuracy: {acc}')
 
-    # mext_tok_ids = []
-    # for i, idx in enumerate(last_hidden_state_indices.tolist()):
-    #     tok_id = logits[i, idx].argmax()
-    #     mext_tok_ids.append(tok_id)
-    # for tok_id in mext_tok_ids:
-    #     if tok_id == true_id:
-    #         preds.append(1)
-    #     elif tok_id == false_id:
-    #         preds.append(0)
-    #     else:
-    #         raise Exception()
 
 
 
