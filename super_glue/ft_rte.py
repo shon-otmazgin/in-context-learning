@@ -1,54 +1,17 @@
 import wandb
-import torch
-from sklearn.metrics import accuracy_score
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, \
-    DataCollatorForLanguageModeling, TrainerCallback
+    DataCollatorForLanguageModeling
 
 from data import get_datasets
-from icl_rte import rte_prompt, rte_config
+from config import rte_prompt, rte_config
+from utils import Project2TargetTokens, EvaluateFirstStepCallback
+
 from peft import get_peft_model, LoraConfig
-
-
-class EvaluateFirstStepCallback(TrainerCallback):
-    def on_step_end(self, args, state, control, **kwargs):
-        if state.global_step == 1:
-            control.should_evaluate = True
-
-
-class Project2TargetTokens:
-    def __init__(self, target_tokens):
-        self.target_tokens = target_tokens
-
-    def __call__(self, logits, labels):
-        batch_size, seq_len, vocab_size = logits.size()
-
-        # -1 is the label, -2 is the last token before the label
-        last_token_indices = (labels != -100).sum(dim=-1) - 2
-
-        last_token_indices = last_token_indices.unsqueeze(-1).unsqueeze(-1).expand(
-            (batch_size, 1, vocab_size))
-        # out[i][j][k] = input[i][index[i][j][k]][k]  # if dim == 1
-        last_token_logits = torch.gather(logits, dim=1, index=last_token_indices)
-        logits_target_tokens = last_token_logits[:, :, self.target_tokens].squeeze(1)
-
-        return logits_target_tokens
-
-    def eval_rte(self, eval_perds):
-        labels = torch.from_numpy(eval_perds.label_ids)
-        logits = eval_perds.predictions
-
-        # -1 is the label
-        last_token_indices = (labels != -100).sum(dim=-1) - 1
-        true_target_tokens = torch.gather(labels, dim=1, index=last_token_indices.unsqueeze(-1)).squeeze(-1).tolist()
-        pred_target_tokens = [self.target_tokens[x] for x in logits.argmax(axis=-1).tolist()]
-        return {
-            'accuracy': accuracy_score(y_true=true_target_tokens, y_pred=pred_target_tokens)
-        }
 
 
 if __name__ == '__main__':
     cache_dir = '/home/nlp/shon711/.cache'
-    opt_size = 'facebook/opt-30b'
+    opt_size = 'facebook/opt-13b'
     experiment_name = f'rte-{opt_size}'
 
     wandb.init(project='in-context-learning', name=experiment_name)
@@ -56,7 +19,7 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(opt_size, use_fast=False, cache_dir=cache_dir)
 
     few_shot_dataset, dev_dataset = get_datasets(
-        task_name='rte', prompt_func=rte_prompt, n_shots=16, seed=0, finetune=True, tokenizer=tokenizer
+        task_name='rte', prompter=rte_prompt, n_shots=16, seed=0, finetune=True, tokenizer=tokenizer
     )
 
     training_args = TrainingArguments(
@@ -64,6 +27,7 @@ if __name__ == '__main__':
         logging_dir=experiment_name,
         overwrite_output_dir=True,
         learning_rate=3e-4,
+        # gradient_accumulation_steps=len(few_shot_dataset),
         max_steps=len(few_shot_dataset),
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
@@ -78,7 +42,7 @@ if __name__ == '__main__':
         fp16=True,
         report_to='wandb',
         run_name=experiment_name,
-        deepspeed='ds_config.json'
+        deepspeed='ds_zero2_config.json'
     )
 
     data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
@@ -99,7 +63,7 @@ if __name__ == '__main__':
         train_dataset=few_shot_dataset,
         eval_dataset=dev_dataset,
         data_collator=data_collator,
-        compute_metrics=logits_processor.eval_rte,
+        compute_metrics=logits_processor.eval,
         preprocess_logits_for_metrics=logits_processor
     )
     trainer.add_callback(EvaluateFirstStepCallback())

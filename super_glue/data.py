@@ -14,7 +14,7 @@ def encode(batch, tokenizer):
     return tokenizer(batch['prompt'])
 
 
-def get_datasets(task_name, prompt_func, n_shots=32, finetune=False, seed=None, shots_indices=None, tokenizer=None):
+def get_datasets(task_name, prompter, n_shots=32, seed=None, shots_indices=None, tokenizer=None):
     dataset = load_dataset("super_glue", task_name)
     dataset = dataset.rename_column('label', 'class_label')
 
@@ -27,16 +27,11 @@ def get_datasets(task_name, prompt_func, n_shots=32, finetune=False, seed=None, 
     dev_dataset = dataset['validation']
 
     few_shot_dataset = few_shot_dataset.map(
-        prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': True}
+        prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompter, 'add_completion': True}
     )
-    if not finetune:
-        dev_dataset = dev_dataset.map(
-            prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': False}
-        )
-    else:
-        dev_dataset = dev_dataset.map(
-            prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompt_func, 'add_completion': True}
-        )
+    dev_dataset = dev_dataset.map(
+        prepare_prompt, batched=False, fn_kwargs={'prompt_func': prompter, 'add_completion': True}
+    )
 
     # dev_dataset = dev_dataset.select(list(range(10)))
 
@@ -64,7 +59,7 @@ if __name__ == '__main__':
 
     indices = [1432, 1711, 383, 1742, 31, 2304, 391, 380, 1607, 703, 1814, 2082, 2379, 1189, 1573, 1455]
     few_shot_dataset, dev_dataset = get_datasets(
-        task_name='rte', prompt_func=rte_prompt, shots_indices=indices
+        task_name='rte', prompter=rte_prompt, shots_indices=indices
     )
 
     seperator = '\n\n'
