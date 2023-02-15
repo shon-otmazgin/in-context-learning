@@ -30,7 +30,10 @@ if __name__ == '__main__':
 
     prompter = prompts[task_name]
     tokenizer = AutoTokenizer.from_pretrained(opt_size, use_fast=False, cache_dir=cache_dir)
-    model = AutoModelForCausalLM.from_pretrained(opt_size, device_map="auto", cache_dir=cache_dir)
+    model = AutoModelForCausalLM.from_pretrained(
+        opt_size, device_map="auto", cache_dir=cache_dir,
+        max_memory={0: "25GiB", 1: "25GiB", "cpu": "300GiB"}
+    )
     model.eval()
     print(model.hf_device_map)
 
@@ -44,14 +47,11 @@ if __name__ == '__main__':
     for i, encoded_prompt in enumerate(prepare_dataset_for_inference(few_shot_dataset, dev_dataset, tokenizer)):
         encoded_prompt = encoded_prompt.to(0)
         with torch.no_grad():
-            output = model(**encoded_prompt, output_hidden_states=True, output_attentions=True)
+            output = model(**encoded_prompt, output_hidden_states=True)
 
-        hidden_states, attn_weights = output['hidden_states'], output['attentions']
-        hidden_states = torch.cat(hidden_states, dim=0).cpu().numpy()[:, -2:, :]
-        attn_weights = torch.cat(attn_weights, dim=0).cpu().numpy()[:, :, -2:, :]
-
+        hidden_states = output['hidden_states']
+        hidden_states = hidden_states[-1][:, -2:, :].cpu().numpy()
         np.save(f'icl_outputs/{task_name}/{i}_hidden_states.npy', hidden_states)
-        np.save(f'icl_outputs/{task_name}/{i}_attn_weights.npy', attn_weights)
 
         logits, labels = output['logits'], encoded_prompt['input_ids']
         target_tokens_logits = target_tokens_logits_processor(logits, labels)
