@@ -55,8 +55,8 @@ if __name__ == '__main__':
         hidden_states = torch.cat(hidden_states, dim=0).cpu().numpy()[:, -2:, :]
         attn_weights = torch.cat(attn_weights, dim=0).cpu().numpy()[:, :, -2:, :]
 
-        np.save(f'icl_outputs/{task_name}/{i}_hidden_states.npy', hidden_states)
-        np.save(f'icl_outputs/{task_name}/{i}_attn_weights.npy', attn_weights)
+        np.save(f'ft_outputs/{task_name}/{i}_hidden_states.npy', hidden_states)
+        np.save(f'ft_outputs/{task_name}/{i}_attn_weights.npy', attn_weights)
 
         logits, labels = output['logits'], encoded_prompt['input_ids']
         target_tokens_logits = target_tokens_logits_processor(logits, labels)

@@ -22,7 +22,7 @@ def prepare_dataset_for_inference(few_shot_dataset, dev_dataset, tokenizer):
 if __name__ == '__main__':
     task_name = 'rte'
 
-    opt_size = 'facebook/opt-125m'
+    opt_size = 'facebook/opt-13b'
     cache_dir = '/home/nlp/shon711/.cache'
     experiment_name = f'ICL-{task_name}-{opt_size}'
 
