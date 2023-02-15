@@ -1,6 +1,7 @@
+import os
 import torch
 from sklearn.metrics import accuracy_score
-from transformers import TrainerCallback
+from transformers import TrainerCallback, Trainer
 
 
 class Project2TargetTokens:
@@ -42,3 +43,13 @@ class EvaluateFirstStepCallback(TrainerCallback):
     def on_step_end(self, args, state, control, **kwargs):
         if state.global_step == 1:
             control.should_evaluate = True
+
+
+class MyTrainer(Trainer):
+
+    def _save_checkpoint(self, model, trial, metrics=None):
+        # super()._save_checkpoint(model, trial, metrics)
+        checkpoint_folder = f"checkpoint-{self.state.global_step}"
+        run_dir = self._get_output_dir(trial=trial)
+        output_dir = os.path.join(run_dir, checkpoint_folder)
+        model.save_pretrained(output_dir)

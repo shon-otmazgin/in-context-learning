@@ -4,7 +4,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments,
 
 from data import get_datasets
 from config import prompts
-from utils import Project2TargetTokens, EvaluateFirstStepCallback
+from utils import MyTrainer, Project2TargetTokens, EvaluateFirstStepCallback
 
 from peft import get_peft_model, LoraConfig
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     encoded_target_tokens = [x[0] for x in tokenizer(target_tokens, add_special_tokens=False)['input_ids']]
     target_tokens_logits_processor = Project2TargetTokens(encoded_target_tokens)
 
-    trainer = Trainer(
+    trainer = MyTrainer(
         model=model,
         tokenizer=tokenizer,
         args=training_args,
@@ -77,5 +77,7 @@ if __name__ == '__main__':
     trainer.train()
     eval_results = trainer.evaluate()
     print(eval_results)
+
+    # model.save_pretrained(experiment_name)
 
 
