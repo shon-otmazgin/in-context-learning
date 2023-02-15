@@ -49,7 +49,7 @@ if __name__ == '__main__':
     target_tokens_logits_processor = Project2TargetTokens(encoded_target_tokens)
 
     all_preds, all_labels = [], []
-    for encoded_prompt in prepare_dataset_for_inference(dev_dataset, tokenizer):
+    for i, encoded_prompt in enumerate(prepare_dataset_for_inference(dev_dataset, tokenizer)):
         encoded_prompt = encoded_prompt.to(0)
         with torch.no_grad():
             output = model(**encoded_prompt, output_hidden_states=True)
