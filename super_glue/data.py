@@ -22,6 +22,7 @@ def get_datasets(task_name, prompter, n_shots=32, seed=None, shots_indices=None,
         few_shot_dataset = dataset['train'].train_test_split(
             test_size=n_shots, shuffle=True, seed=seed if seed else n_shots
         )['test']
+        print(few_shot_dataset['idx'])
     else:
         few_shot_dataset = dataset['train'].select(shots_indices)
     dev_dataset = dataset['validation']
