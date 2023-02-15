@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import wandb
 from tqdm.auto import tqdm
@@ -21,7 +22,7 @@ def prepare_dataset_for_inference(few_shot_dataset, dev_dataset, tokenizer):
 if __name__ == '__main__':
     task_name = 'rte'
 
-    opt_size = 'facebook/opt-13b'
+    opt_size = 'facebook/opt-125m'
     cache_dir = '/home/nlp/shon711/.cache'
     experiment_name = f'ICL-{task_name}-{opt_size}'
 
@@ -40,10 +41,17 @@ if __name__ == '__main__':
     target_tokens_logits_processor = Project2TargetTokens(encoded_target_tokens)
 
     all_preds, all_labels = [], []
-    for encoded_prompt in prepare_dataset_for_inference(few_shot_dataset, dev_dataset, tokenizer):
+    for i, encoded_prompt in enumerate(prepare_dataset_for_inference(few_shot_dataset, dev_dataset, tokenizer)):
         encoded_prompt = encoded_prompt.to(0)
         with torch.no_grad():
-            output = model(**encoded_prompt)
+            output = model(**encoded_prompt, output_hidden_states=True, output_attentions=True)
+
+        hidden_states, attn_weights = output['hidden_states'], output['attentions']
+        hidden_states = torch.cat(hidden_states, dim=0).cpu().numpy()[:, -2:, :]
+        attn_weights = torch.cat(attn_weights, dim=0).cpu().numpy()[:, :, -2:, :]
+
+        np.save(f'icl_outputs/{task_name}/{i}_hidden_states.npy', hidden_states)
+        np.save(f'icl_outputs/{task_name}/{i}_attn_weights.npy', attn_weights)
 
         logits, labels = output['logits'], encoded_prompt['input_ids']
         target_tokens_logits = target_tokens_logits_processor(logits, labels)
